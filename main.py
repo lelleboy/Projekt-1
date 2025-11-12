@@ -1,5 +1,6 @@
 import csv
 import os
+import pandas as pd  
 
 CSV_FILE = "db_skins.csv"
 
@@ -23,7 +24,6 @@ def load_data(filename):
 skins = load_data(CSV_FILE)
 
 
-
 def save_data():
     with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.DictWriter(file, fieldnames=[
@@ -34,12 +34,61 @@ def save_data():
     print("Data sparad!")
 
 
-
 def list_skins():
     print("\n--- Alla Skins ---")
-    for skin in skins:
-        print(f"{skin['id']}: {skin['name']} | {skin['price']} | {skin['exterior']}")
-    print("------------------\n")
+    if not skins:
+        print("Inga skins hittades.")
+        return
+
+    
+    df = pd.DataFrame(skins)
+    df = df[["id", "name", "price", "exterior", "collection"]]
+    df = df.sort_values("id").reset_index(drop=True)
+
+    
+    df[["weapon", "skin"]] = df["name"].str.split(" \| ", expand=True)
+    df["price"] = df["price"].map(lambda x: f"{x:,.2f}")
+
+    
+    df = df[["id", "weapon", "skin", "price", "exterior", "collection"]]
+
+   
+    col_widths = {}
+    for col in df.columns:
+        max_len = max(df[col].astype(str).map(len).max(), len(col))
+        # lite extra luft för snyggare spacing
+        col_widths[col] = max_len + 2
+
+    
+    extra_space_after_price = 4
+
+    
+    header = (
+        f"{'id'.ljust(col_widths['id'])}"
+        f"{'weapon'.ljust(col_widths['weapon'])}"
+        f"{'skin'.ljust(col_widths['skin'])}"
+        f"{'price'.rjust(col_widths['price'])}{' ' * extra_space_after_price}"
+        f"{'exterior'.ljust(col_widths['exterior'])}"
+        f"{'collection'.ljust(col_widths['collection'])}"
+    )
+    print(header)
+    print("-" * len(header))
+
+    
+    for _, row in df.iterrows():
+        print(
+            f"{str(row['id']).ljust(col_widths['id'])}"
+            f"{row['weapon'].ljust(col_widths['weapon'])}"
+            f"{row['skin'].ljust(col_widths['skin'])}"
+            f"{row['price'].rjust(col_widths['price'])}{' ' * extra_space_after_price}"
+            f"{row['exterior'].ljust(col_widths['exterior'])}"
+            f"{row['collection'].ljust(col_widths['collection'])}"
+        )
+
+    print("-" * len(header))
+
+
+
 
 
 def add_skin():
@@ -98,26 +147,23 @@ def change_skin():
     print("Hittades inte!")
 
 
-
 while True:
+    list_skins()
     print("\n MENY")
-    print("1: Lista skins")
-    print("2: Lägg till skin")
-    print("3: Ta bort skin")
-    print("4: Ändra skin")
-    print("5: Avsluta")
+    print("1: Lägg till skin")
+    print("2: Ta bort skin")
+    print("3: Ändra skin")
+    print("Q: Avsluta")
 
     val = input("Vad vill du göra?: ")
 
     if val == "1":
-        list_skins()
-    elif val == "2":
         add_skin()
-    elif val == "3":
+    elif val == "2":
         delete_skin()
-    elif val == "4":
+    elif val == "3":
         change_skin()
-    elif val == "5":
+    elif val == "q" or "Q":
         print("Avslutar")
         break
     else:
