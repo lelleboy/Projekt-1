@@ -1,5 +1,6 @@
 import csv
 import curses
+import textwrap
 
 CSV_FILE = "db_skins.csv"
 
@@ -65,7 +66,12 @@ def skin_menu(stdscr, skins):
         elif current_row >= scroll_offset + visible_height:
             scroll_offset = current_row - visible_height + 1
 
-        header_text = "ID".ljust(4) + " | " + "Weapon".ljust(20) + " | " + "Skin".ljust(25) + " | " + "Price".ljust(10)
+        header_text = (
+            "ID".ljust(4) + " | " +
+            "Weapon".ljust(20) + " | " +
+            "Skin".ljust(25) + " | " +
+            "Price".ljust(10)
+        )
         x = max(0, w // 2 - len(header_text) // 2)
         stdscr.attron(curses.color_pair(2) | curses.A_BOLD)
         stdscr.addstr(1, x, header_text[:w-1])
@@ -75,6 +81,7 @@ def skin_menu(stdscr, skins):
         for i in range(scroll_offset, min(len(menu_items), scroll_offset + visible_height)):
             item = menu_items[i]
             y = 4 + (i - scroll_offset)
+
             if "price" in item and " | " in item["name"]:
                 weapon, skin = item["name"].split(" | ", 1)
                 price = f"{item['price']:.2f} kr"
@@ -84,10 +91,22 @@ def skin_menu(stdscr, skins):
                 skin = ""
                 price = ""
                 id_str = "    "
+
             text = id_str + " | " + weapon.ljust(20) + " | " + skin.ljust(25) + " | " + price.ljust(10)
             x_text = max(0, w // 2 - len(text) // 2)
+
             display_text = ("→ " if i == current_row else "  ") + text
-            stdscr.addstr(y, x_text - 3, display_text[:w-1], curses.color_pair(1) if i == current_row else curses.color_pair(3))
+            safe_x = max(0, x_text - 3)
+
+            if len(display_text) >= w - safe_x:
+                display_text = display_text[: (w - safe_x - 1)]
+
+            stdscr.addstr(
+                y,
+                safe_x,
+                display_text,
+                curses.color_pair(1) if i == current_row else curses.color_pair(3)
+            )
 
         footer = "↑/↓ navigera   ENTER välj   Q avsluta"
         stdscr.attron(curses.color_pair(2))
@@ -116,6 +135,7 @@ def main(stdscr):
         choice = skin_menu(stdscr, skins)
         if choice is None or choice == len(skins) + 3:
             break
+
         if choice == len(skins):
             new_id = max([s["id"] for s in skins], default=0) + 1
             name = curses_input(stdscr, "Namn (Weapon | Skin):")
@@ -132,10 +152,12 @@ def main(stdscr):
                 "collection": coll
             })
             save_data(skins)
+
         elif choice == len(skins) + 1:
             remove_id = int(curses_input(stdscr, "ID att ta bort:"))
             skins = [s for s in skins if s["id"] != remove_id]
             save_data(skins)
+
         elif choice == len(skins) + 2:
             edit_id = int(curses_input(stdscr, "ID att ändra:"))
             target = next((s for s in skins if s["id"] == edit_id), None)
@@ -148,16 +170,32 @@ def main(stdscr):
                 target["exterior"] = curses_input(stdscr, f"Ny exterior ({target['exterior']}):") or target["exterior"]
                 target["collection"] = curses_input(stdscr, f"Ny collection ({target['collection']}):") or target["collection"]
                 save_data(skins)
+
         else:
             s = skins[choice]
             stdscr.clear()
+            max_y, max_x = stdscr.getmaxyx()
+
             stdscr.addstr(2, 2, f"ID: {s['id']}")
             stdscr.addstr(3, 2, f"Namn: {s['name']}")
-            stdscr.addstr(4, 2, f"Beskrivning: {s['description']}")
-            stdscr.addstr(5, 2, f"Pris: {s['price']:.2f} kr")
-            stdscr.addstr(6, 2, f"Exterior: {s['exterior']}")
-            stdscr.addstr(7, 2, f"Collection: {s['collection']}")
-            stdscr.addstr(9, 2, "Tryck valfri knapp för att återgå till menyn...")
+
+            stdscr.addstr(4, 2, "Beskrivning:")
+
+            desc_lines = textwrap.wrap(s["description"], max_x - 4)
+            line_y = 5
+            for line in desc_lines:
+                stdscr.addstr(line_y, 4, line)
+                line_y += 1
+
+            stdscr.addstr(line_y, 2, f"Pris: {s['price']:.2f} kr")
+            line_y += 1
+
+            stdscr.addstr(line_y, 2, f"Exterior: {s['exterior']}")
+            line_y += 1
+
+            stdscr.addstr(line_y, 2, f"Collection: {s['collection']}")
+
+            stdscr.addstr(line_y + 2, 2, "Tryck valfri knapp för att återgå till menyn...")
             stdscr.refresh()
             stdscr.getch()
 
