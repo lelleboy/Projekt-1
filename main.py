@@ -94,7 +94,6 @@ def skin_menu(stdscr, skins):
 
             text = id_str + " | " + weapon.ljust(20) + " | " + skin.ljust(25) + " | " + price.ljust(10)
             x_text = max(0, w // 2 - len(text) // 2)
-
             display_text = ("→ " if i == current_row else "  ") + text
             safe_x = max(0, x_text - 3)
 
@@ -156,6 +155,8 @@ def main(stdscr):
         elif choice == len(skins) + 1:
             remove_id = int(curses_input(stdscr, "ID att ta bort:"))
             skins = [s for s in skins if s["id"] != remove_id]
+            for i, skin in enumerate(skins, start=1):
+                skin["id"] = i
             save_data(skins)
 
         elif choice == len(skins) + 2:
@@ -178,24 +179,24 @@ def main(stdscr):
 
             stdscr.addstr(2, 2, f"ID: {s['id']}")
             stdscr.addstr(3, 2, f"Namn: {s['name']}")
+            stdscr.addstr(4, 2, f"Pris: {s['price']:.2f} kr")
+            stdscr.addstr(5, 2, f"Exterior: {s['exterior']}")
+            stdscr.addstr(6, 2, f"Collection: {s['collection']}")
 
-            stdscr.addstr(4, 2, "Beskrivning:")
+            line_y = 8
+            stdscr.addstr(line_y, 2, "Beskrivning:")
+            line_y += 1
 
-            desc_lines = textwrap.wrap(s["description"], max_x - 4)
-            line_y = 5
-            for line in desc_lines:
-                stdscr.addstr(line_y, 4, line)
+            paragraphs = s["description"].split("\n")
+            for p in paragraphs:
+                wrapped = textwrap.fill(p, max_x - 4)
+                for line in wrapped.split("\n"):
+                    if line_y < max_y - 2:
+                        stdscr.addstr(line_y, 4, line)
+                        line_y += 1
                 line_y += 1
 
-            stdscr.addstr(line_y, 2, f"Pris: {s['price']:.2f} kr")
-            line_y += 1
-
-            stdscr.addstr(line_y, 2, f"Exterior: {s['exterior']}")
-            line_y += 1
-
-            stdscr.addstr(line_y, 2, f"Collection: {s['collection']}")
-
-            stdscr.addstr(line_y + 2, 2, "Tryck valfri knapp för att återgå till menyn...")
+            stdscr.addstr(max_y - 2, 2, "Tryck valfri knapp för att gå till menyn...")
             stdscr.refresh()
             stdscr.getch()
 
