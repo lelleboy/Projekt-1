@@ -1,7 +1,17 @@
 import csv
 import curses
+import webbrowser
 
 CSV_FILE = "db_skins.csv"
+
+def generate_link(name):
+    """Genererar en Google-sökning baserat på skin-namnet"""
+    # Lägg till "CS2 skin" för bättre sökresultat
+    search_query = name + " CS2 skin"
+    # URL-encode sökningen
+    import urllib.parse
+    encoded_query = urllib.parse.quote(search_query)
+    return f"https://www.google.com/search?q={encoded_query}&tbm=isch"
 
 def load_data(filename):
     skins = []
@@ -9,13 +19,19 @@ def load_data(filename):
         with open(filename, mode='r', newline='', encoding='utf-8') as file:
             reader = csv.DictReader(file)
             for row in reader:
+                link = row.get('link', '')
+                if not link:
+                    # Generera automatisk länk om ingen finns
+                    link = generate_link(row['name'])
+                
                 skins.append({
                     "id": int(row['id']),
                     "name": row['name'],
                     "description": row['description'],
                     "price": float(row['price']),
                     "exterior": row['exterior'],
-                    "collection": row['collection']
+                    "collection": row['collection'],
+                    "link": link
                 })
     except FileNotFoundError:
         pass
@@ -24,7 +40,7 @@ def load_data(filename):
 def save_data(skins):
     with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.DictWriter(file, fieldnames=[
-            "id", "name", "description", "price", "exterior", "collection"
+            "id", "name", "description", "price", "exterior", "collection", "link"
         ])
         writer.writeheader()
         writer.writerows(skins)
@@ -96,20 +112,45 @@ def show_menu(stdscr, skins):
             return None
 
 def show_details(stdscr, skin):
-    stdscr.clear()
     h, w = stdscr.getmaxyx()
     
-    stdscr.addstr(1, 2, f"ID: {skin['id']}")
-    stdscr.addstr(2, 2, f"Namn: {skin['name']}")
-    stdscr.addstr(3, 2, f"Pris: {skin['price']:.2f} kr")
-    stdscr.addstr(4, 2, f"Exterior: {skin['exterior']}")
-    stdscr.addstr(5, 2, f"Collection: {skin['collection']}")
-    stdscr.addstr(7, 2, "Beskrivning:")
-    stdscr.addstr(8, 2, "-" * (w - 4))
+    # Popup dimensioner
+    popup_h = min(20, h - 4)
+    popup_w = min(70, w - 4)
+    start_y = (h - popup_h) // 2
+    start_x = (w - popup_w) // 2
+    
+    # Rita bakgrunden (huvudmenyn) först
+    stdscr.refresh()
+    
+    # Skapa popup-fönster
+    popup = curses.newwin(popup_h, popup_w, start_y, start_x)
+    popup.box()
+    
+    y = 2
+    popup.addstr(y, 2, f"ID: {skin['id']}")
+    y += 1
+    popup.addstr(y, 2, f"Namn: {skin['name']}")
+    y += 1
+    popup.addstr(y, 2, f"Pris: {skin['price']:.2f} kr")
+    y += 1
+    popup.addstr(y, 2, f"Exterior: {skin['exterior']}")
+    y += 1
+    popup.addstr(y, 2, f"Collection: {skin['collection']}")
+    y += 1
+    
+    if skin.get('link'):
+        popup.addstr(y, 2, f"Länk: {skin['link']}")
+        y += 1
+    
+    y += 1
+    popup.addstr(y, 2, "Beskrivning:")
+    y += 1
+    popup.addstr(y, 2, "-" * (popup_w - 4))
+    y += 1
     
     # Visa beskrivning med wordwrap
-    y = 9
-    max_width = w - 6
+    max_width = popup_w - 6
     words = skin['description'].split()
     line = ""
     
@@ -118,17 +159,29 @@ def show_details(stdscr, skin):
         if len(test) <= max_width:
             line = test
         else:
-            if y < h - 3:
-                stdscr.addstr(y, 4, line)
+            if y < popup_h - 3:
+                popup.addstr(y, 4, line)
                 y += 1
             line = word
     
-    if line and y < h - 3:
-        stdscr.addstr(y, 4, line)
+    if line and y < popup_h - 3:
+        popup.addstr(y, 4, line)
     
-    stdscr.addstr(h - 2, 2, "Tryck valfri knapp för att gå tillbaka...", curses.A_DIM)
-    stdscr.refresh()
-    stdscr.getch()
+    # Footer
+    if skin.get('link'):
+        popup.addstr(popup_h - 2, 2, "L: Öppna länk | Tryck valfri knapp för att gå tillbaka...", curses.A_DIM)
+    else:
+        popup.addstr(popup_h - 2, 2, "Tryck valfri knapp för att gå tillbaka...", curses.A_DIM)
+    
+    popup.refresh()
+    
+    key = popup.getch()
+    if key in (ord('l'), ord('L')) and skin.get('link'):
+        try:
+            webbrowser.open(skin['link'])
+            popup.getch()
+        except:
+            pass
 
 def add_skin(stdscr, skins):
     new_id = max([s["id"] for s in skins], default=0) + 1
@@ -137,6 +190,7 @@ def add_skin(stdscr, skins):
     price = float(get_input(stdscr, "Pris:"))
     ext = get_input(stdscr, "Exterior:")
     coll = get_input(stdscr, "Collection:")
+    link = get_input(stdscr, "Länk (valfri):")
     
     skins.append({
         "id": new_id,
@@ -144,10 +198,14 @@ def add_skin(stdscr, skins):
         "description": desc,
         "price": price,
         "exterior": ext,
-        "collection": coll
+        "collection": coll,
+        "link": link
     })
     save_data(skins)
 
+
+
+# Tar bort skin
 def delete_skin(stdscr, skins):
     remove_id = int(get_input(stdscr, "ID att ta bort:"))
     original_len = len(skins)
@@ -158,6 +216,8 @@ def delete_skin(stdscr, skins):
             skin["id"] = i
         save_data(skins)
 
+
+# Förendrar skin
 def edit_skin(stdscr, skins):
     edit_id = int(get_input(stdscr, "ID att ändra:"))
     
@@ -183,9 +243,15 @@ def edit_skin(stdscr, skins):
             if new_coll:
                 skin["collection"] = new_coll
             
+            new_link = get_input(stdscr, f"Ny länk ({skin.get('link', '')}):")
+            if new_link:
+                skin["link"] = new_link
+            
             save_data(skins)
             return
 
+
+# Meny som väljer vad det är man vill göra
 def main(stdscr):
     curses.start_color()
     curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)
